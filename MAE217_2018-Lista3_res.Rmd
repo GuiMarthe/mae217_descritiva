@@ -1,0 +1,464 @@
+---
+title: "MAE217 Lista 3"
+author: 'Guilherme Marthe --- NUSP:8661962'
+output: pdf_document
+geometry: margin=1cm
+fontsize: 9pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set( fig.align = 'center',
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+suppressPackageStartupMessages(library(tidyverse))  
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(janitor))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(kableExtra))
+theme_set(theme_minimal())
+
+```
+
+## 1. Considere os dados no arquivo empresa.xls, com informações sobre funcionários de certa empresa.
+
+```{r}
+df <- readxl::read_excel('data/MAE217_2018-empresa.xls')
+```
+
+
+### a) Construa uma tabela de dupla entrada com informações sobre estado civil e escolaridade.
+
+```{r}
+style_totals <- . %>% 
+  kable_styling(position = "center") %>% 
+  column_spec(3, border_right = T) %>%
+  row_spec(3, hline_after = T) %>% 
+  column_spec(4, bold = T) %>%
+  row_spec(4, bold = T)
+df %>% 
+  count(EstCivil, Escolaridade) %>% 
+  spread(EstCivil, n) %>% 
+  adorn_totals(where = c('row', 'col')) %>% 
+  as.data.frame() %>% 
+  kable(., 'latex', booktabs = T) %>% style_totals
+```
+
+### b) Calcule frequências relativas adequadas para avaliar descritivamente se estado civil está associado com escolaridade. Interprete. 
+
+```{r}
+
+df %>% 
+  count(EstCivil, Escolaridade) %>% 
+  mutate(n = n/sum(n)) %>% 
+  spread(EstCivil, n) %>% 
+  adorn_totals(where = c('row', 'col')) %>% 
+  adorn_pct_formatting() %>% 
+  as.data.frame() %>% 
+  kable(., 'latex', booktabs = T) %>% style_totals
+```
+
+A divisão entre casados e solteiros está relativamente igual, com quase 55% casados e 45% solterios. Existe também uma concentração de funcionários cde 50% deles tendo completado o ensino médio. Esse número, o total de funcionários que completou o ensino médio, é maior entre os casados que os solteiros. Além disso, a concentração de funcionários que completaram o ensino superior é igual entre casados e solteiros.
+
+### c) Calcule a estatística de qui-quadrado de Pearson, coeficiente de contigência e coeficiente de Tschuprov. Você diria que existe associação entre estado civil e escolaridade?
+
+```{r message=FALSE, warning=FALSE}
+chi <- chisq.test(df$EstCivil, df$Escolaridade)$statistic %>% unname()
+C <- sqrt(chi/(chi + nrow(df)))
+Ts <- sqrt((chi/nrow(df))/sqrt(length(unique(df$EstCivil)) - 1)*(length(unique(df$Escolaridade)) - 1))
+```
+
+As estátisticas calculadas são:
+
+- Chi-quadrado de pearson: $\chi^2 =$ `r round(chi,4)`
+- Coeficiente de contingência: $C =$ `r round(C, 4)`
+- Coeficiente de Tschuprov: $T =$ `r round(Ts, 4)`
+
+Com os coeficientes de contingência e de Tschuprov têm uma interpretação semelhante com o coeficiente de correlação de Pearson para dua variáveis quantitativas, podemos analisar que a associação entre estado civil e escolaridade é relativamente baixa quando olhamos para o valor de `r round(Ts, 4)` do coeficiente de Tschuprov, que varia entre -1 e 1.
+
+### d) Considere agora as variáveis Procedência e Salário. Analise descritivamente (através de gráficos e medidas resumo) essas informações para verificar se o salário depende da procedência do funcionário.  
+
+O boxplot a seguir nos mostra que funcionários do interior tem uma mediana reativamente mais alta que os outros grupos de procedência, e o comprimentos dos "bigodes" indicam a presença de valores mais altos nessa variável. O boxplot dos salários procedentes da capital possuem uma a amplitude da caixa (IQR) maior indicando uma maior variação nesse grupo. 
+
+```{r fig.height=3, fig.width=5.5, message=FALSE, warning=FALSE}
+
+df %>% 
+  select(Salario, Procedencia) %>% 
+  ggplot(aes(Procedencia, Salario)) +
+  geom_boxplot(width = 0.3) +
+  labs(title = 'Boxplots de salário com relação à\nprocedência dos funcionários')
+
+
+```
+
+Vamos observar então algumas medidas resumo por grupos. Como a tabela abaixo mostra, valores médios relativamente próximos, com apenas a amostra dos salários da procedência "outra" sendo ligeiramente mais baixos. Porém essa diferença parece tão pequena que indica que o valor dos salários não está fortemente relacionado com a procedência do funcionário do interior ou da capital. A procedência "outra" parece ter um salário menor.
+
+```{r}
+
+summary_funcitions <- list('Média' = mean, 
+    'Desv. Padrão' = sd, 
+    'Min' = min,
+    'Q1' = ~quantile(., probs = 0.25), 
+    'Mediana'= ~quantile(., probs = 0.50),
+    'Q3' = ~quantile(., probs = 0.75), 
+    'Max' = max, 
+    'IQR' = IQR)
+
+df %>% 
+  group_by(Procedencia) %>% 
+  summarise_at(vars(Salario), .funs = summary_funcitions) %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = "center")
+```
+
+O gráfico de perfis nos permite visualizar as conclusões que chegamos ao analisar a tabela de medidas resumo.
+
+```{r fig.height=3, fig.width=5.5, message=FALSE, warning=FALSE}
+df %>% 
+  group_by(Procedencia) %>% 
+  summarise(avg = mean(Salario),
+            std = sd(Salario)/sqrt(n()),
+            sup = avg + std,
+            inf = avg - std
+            ) %>% 
+  ggplot(aes(x = Procedencia, y = avg)) + 
+  geom_point(size = 3) + 
+  geom_errorbar(aes(ymin = inf, ymax = sup), width = 0.1) + 
+  geom_line(aes(group = 1)) + 
+  labs(title = 'Gráfico de perfis médios para a variável salário e procedência',
+       y = 'Salário médio (# de salários mínimos)',
+       subtitle = 'Barras verticais indicam os erros-padrão da média de cada grupo'
+       )
+```
+
+
+```{r eval=FALSE, include=FALSE}
+
+df %>% 
+  group_by(Procedencia) %>% 
+  summarise(vi = var(Salario),
+            n = n()
+            ) %>% 
+  mutate(vip = n*vi) %>% 
+  summarise(vip_bar = sum(vip)/sum(n), 
+            v_bar = sum(vi)/sum(n)
+            ) -> vip_bar
+rsq = 1 - (vip_bar$vip_bar[[1]]/var(df$Salario))
+
+lm(Salario ~ Procedencia, data=df) %>% summary(.)
+
+
+```
+
+\pagebreak
+
+
+## 2. Os dados na tabela abaixo são provenientes de um estudo em que um dos objetivos é avaliar o efeito da dose de radiação gama (em centigrays) na formação de múltiplos micronúcleos em células de indivíduos normais.
+
+```{r}
+ct <- cols(
+  dose_radiação_gama = col_integer(),
+  frequência_celulas_multiplos_micronucleos = col_integer(),
+  total_células_examinadas = col_integer()
+)
+
+df <- read_csv('data/ex2.csv', col_types = ct)
+
+df %>% kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center')
+```
+
+
+### a) Faça uma análise descritiva dos dados, calculando o risco relativo de ocorrência de micronúcleos para cada dose, tomando como base a dose nula.
+
+```{r}
+df %>% 
+  transmute(dose_radiação_gama, 
+            prob = (frequência_celulas_multiplos_micronucleos/total_células_examinadas) ,
+            rr = (prob/first(prob)) %>% round(., 1),
+            prob = prob %>%  round(., 3)
+            ) %>% 
+  rename(`Prob. de células com micronúcleos` = prob, `Risco relativo*` = rr, 
+         `Dose radiação gama` = dose_radiação_gama) %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center') %>% 
+  footnote(symbol = c('Risco relativo calculado com relação ao caso de radiação nula.'))
+
+```
+
+
+### b) Repita a análise do item anterior considerando agora razões de chances.
+
+```{r}
+
+df %>% 
+  transmute(dose_radiação_gama, 
+            prob = (frequência_celulas_multiplos_micronucleos/total_células_examinadas) ,
+            Chance = prob/(1-prob),
+            chance_relativa = (Chance/first(Chance)) %>% round(.,0),
+            prob = prob %>%  round(., 3),
+            Chance = Chance %>%  round(., 3)
+            ) %>% 
+  rename(`Prob. de células com micronúcleos` = prob, `Chance relativa*` = chance_relativa, 
+         `Dose radiação gama` = dose_radiação_gama) %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center') %>% 
+  footnote(symbol = c('Chance reativa calculada com relação ao caso de radiação nula.'))
+```
+
+### c) Considerando os dois itens anteriores, quais seriam suas conclusões?
+
+Concluo que de fato, com um aumento da dose de radiação gama, o número de células com micronúcelos parece aumentar. Tanto o risco relativo quanto as chances relativas parece ser ~400X maior para uma pessoa que foi exposta a uma dose de radiação de 500 com relação à um idivíduo normal que não recebeu radiação. Esse aumento parece ainda ser condizente com o fato de que a chance de se ter células com micronúcleos no caso de radiação nula é praticamente 0, e essa chance aumenta gradativamente junto o aumento da radiação.  
+
+
+## 3. Um novo teste está sendo desenvolvido para a identificação do HIV. Em 200 pessoas estudadas, 100 têm HIV e 100 não têm. O teste deu positivo em 75 pessoas e negativo em 125, sendo 25 falsos-positivos e 50 falsos-negativos.
+
+### a) Construa uma tabela de dupla entrada com as informações do enunciado.
+
+```{r}
+df <- tribble(
+ ~`resultado do teste`, ~`Com HIV`, ~`Sem HIV`, ~Total,
+ 'positivo', 75-25, 25,75, 
+ 'negativo',125-50, 50, 125,
+ 'Total' ,100 ,100 ,200
+ 
+)
+
+df %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center') %>% 
+  add_header_above(c(' ', 'Situação' = 2))
+
+```
+
+
+### b) Encontre as medidas de sensibilidade e especificidade do teste.
+
+As definições de sensibilidade e especificidade para o caso estudado são:
+
+- __Sensibilidade__: probabilidade do teste dar positivo para pacientes com HIV
+- __Especificidade__: probabilidade do teste dar negativo para pacientes sem HIV
+
+Então, as estimativas para ambas são:
+
+- Sensibilidade: $\frac{50}{100} =$ `r 50/100`
+- Especificidade: $\frac{25}{100} =$ `r 25/100`
+
+### c) Calcule os valores preditivos positivo e negativo.
+
+As definições de VPP (Valor preditivo positivo) e VPN (valor preditivo negativo) para o caso estudado são:
+
+- __VPP__: probabilidade que o paciente tenha HIV dado que o teste foi positivo
+- __VPN__: probabilidade que o paciente não tenha HIV que o teste é negativo
+
+Assim, essas métricas estimadas são:
+
+- VPP: $\frac{50}{75} =$ `r round(50/75,2)`
+- VPN: $\frac{50}{125} =$ `r 50/125`
+
+
+### d) Qual é a acurácia do teste?
+
+A acuracia do teste é basicamente a probabilidade de se obter resultados corretos, ou seja, a probabilidade de resutados verdadeiros positivos e negativos. No caso podemos estimá-la com o seguinte cálculo:
+
+- Acurácia: $\frac{50 + 50}{200}$ = `r 100/200`
+\pagebreak
+
+## 4. Um laboratório de pesquisa desenvolveu uma nova droga para febre tifóide com a mistura de duas substâncias químicas (A e B). Foi realizado um ensaio clínico com o objetivo de estabelecer as dosagens adequadas (baixa ou média para a substância A e baixa, média ou alta para a substância B) na fabricação da droga. Vinte e quatro voluntários foram aleatoriamente distribuídos em 6 grupos de 4 indivíduos e cada grupo foi submetido a um dos 6 tratamentos. A resposta observada foi o tempo para o desaparecimento dos sintomas (em dias). Os resultados obtidos estão na tabela a seguir.     
+
+```{r}
+ct = cols(
+  dose_substancia_A = col_character(),
+  dose_B__baixa = col_double(),
+  dose_substancia_B__media = col_double(),
+  dose_substancia_B__alta = col_double()
+)
+df <- read_csv('data/ex4.csv', col_types = ct)
+
+df %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center')
+
+```
+
+
+### a) Faça uma análise descritiva dos dados com o objetivo de avaliar qual a combinação de dosagens das substâncias faz com que os sintomas desapareçam em menos tempo.
+
+Primeiramente vamos checar as medidas resumo do tempo até se observar um sintoma agrupando, separadamente, para as doses de cada substância.
+
+```{r}
+df  %<>% 
+  gather(b_dose, tempo, dose_B__baixa:dose_substancia_B__alta) %>% 
+  separate(b_dose, into = c('trash', 'dose_B'), sep = '__') %>% 
+  rename(dose_A = dose_substancia_A) %>% 
+  select(-trash) 
+
+df %>% 
+  group_by(dose_A) %>% 
+  summarise_at(vars(tempo), .funs = summary_funcitions) %>% 
+  adorn_rounding(digits = 3) %>% 
+  as.data.frame() %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center')
+
+
+```
+
+Como podemos ver, a dose média da substância A parece estar marginalmente relacionada com um menor tempo de desaparecimento de sintomas. Além disso ela parece ter menos variação que a dose baixa.
+
+```{r}
+df %>% 
+  group_by(dose_B) %>% 
+  summarise_at(vars(tempo), .funs = summary_funcitions) %>% 
+  adorn_rounding(digits = 3) %>% 
+  as.data.frame() %>% 
+  mutate(oo = recode(dose_B, 'baixa' = 1, 'media' = 2, 'alta' = 3)) %>% 
+  arrange(oo) %>% 
+  select(-oo) %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center')
+
+
+```
+
+A medida de tempo de desaparecimento dos sintomas parece ser menor para doses altas da substância B. Além disso, podemos ver que o grupo tratado com a dose média da substância B possui uma baixa variação, olhando para o desvio padrão desse grupo.
+
+### b) Especifique o modelo para a comparação dos 6 tratamentos quanto ao tempo para o desaparecimento dos sintomas. Identifique os fatores e seus níveis.
+
+$$
+y_{ijk} = \mu_{ij} + \epsilon_{ijk}\space
+$$
+
+Onde $i = 1, 2$ se a dose da substância a for baixa ou média, respectivamente e onde $j = 1, 2, 3$ se a dose da susbtância B for baixa, média ou alta respectivamente. O índice $k = 1,...,24$ representa uma observação do estudo, no caso um paciente diferente. Assim temos uma modelos com $2\dot{}3 = 6$ tratamentos, onde cada combinação de $i$ e $j$ é um tratamento. Por fim, $y_{ijk}$ representa o tempo médio de desaparecimento para os sintomas de um passageiro tratado com as doses $i$ e $j$ de A e B.
+
+### c) Construa o gráfico de perfis médios e interprete-o. Com base nesse gráfico, você acha que existe interação entre os fatores? Justifique sua resposta.
+
+```{r fig.height=3.5, fig.width=7, message=FALSE, warning=FALSE}
+#df %>% 
+#  gather(subs, dose, -tempo) %>% 
+#  separate(subs, into = c('trash', 'substância')) %>% 
+#  select(-trash) %>% 
+#  group_by(substância, dose) %>% 
+#  summarise(avg = mean(tempo), 
+#            ep = sd(tempo)/n(),
+#            sup = avg + ep, 
+#            inf = avg - ep
+#            ) %>% 
+#  mutate(dose = factor(dose, levels = c('baixa', 'media', 'alta'))) 
+
+df %>% 
+  group_by(dose_A, dose_B) %>% 
+  summarise(avg = mean(tempo), 
+            ep = sd(tempo)/1,
+            sup = avg + ep, 
+            inf = avg - ep
+            ) %>% 
+  ungroup() %>% 
+  mutate(dose_B = factor(dose_B, levels = c('baixa', 'media', 'alta'))) %>% 
+  mutate(dose_A = factor(dose_A, levels = c('baixa', 'media'))) %>% 
+  ggplot(aes(dose_B, avg)) + 
+  geom_errorbar(aes(ymin = inf, ymax = sup), width = 0.1) + 
+  geom_point(size = 2) + 
+  geom_line(aes(group = dose_A, linetype = dose_A)) + 
+  labs(x = 'Substância B',
+       y = 'Tempo médio',
+       linetype = 'Substância A' ,
+       title = 'Perfis de tempo de desaparecimento de sintomas\npara diferentes tratamentos',
+       subtitle = 'Barras são o desvio padrão dos conjunto\nde dados correspondente ao tratamento'
+       )
+```
+
+Quando obsevamos o quando o tempo de desaparecimento dos sintomas da substância A em nível baixo quando aplicada junto com cada nível de sa substância B, podemos ver que ele decresce. Quando fazemos a mesma análise para o nível médio da substância A, apresenta-se uma tendência crescente do tempo de desaparecimento dos sintomas. Isso indica uma interação essencial entre os tratamentos, uma vez que quando analisamos as tendências formadas pelos níveis da substância A para cara nível de B, temos inclinações/tendências opostas de comportamento do tempo de desaparecimento dos sintomas.
+
+
+## 5. Numa cidade do interior de São Paulo, exige-se a publicação de informações sobre proprietários inadimplentes com taxas públicas. A publicação lista o nome do proprietário, o valor da propriedade, quantia devida, avaliações e juros além das respectivas penalidades. O valor da propriedade e a quantia de taxas devidas para uma amostra de 10 propriedades são mostrados a seguir. 
+
+
+```{r}
+ct <- cols(
+  valor_mil_reais = col_double(),
+  quantia_devida = col_integer()
+)
+df <- read_csv('data/ex5.csv', col_types = ct)
+
+df %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center')
+```
+
+### a) Calcule o coeficiente de correlação de Pearson e o coeficiente de correlação de Spearman para os dados apresentados. Comente.
+
+```{r}
+df %>% 
+  summarise(Pearson = cor(valor_mil_reais, quantia_devida),
+            Spearman = cor(valor_mil_reais, quantia_devida, method = 'spearman')
+            ) %>% 
+  gather(correlação, valor) %>% 
+  kable(., 'latex', booktabs = T) %>% 
+  kable_styling(position = 'center')
+  
+```
+
+Os coeficientes de correlação variam entre -1 e 1, onde os extremos indicam uma associação alta, decrescente e crescente entre as variáveis estudadas.
+Se os coeficientes forem próximos de zero, a associação entre as variáveis é baixa. 
+
+No caso, temos valores altos para ambos os coeficientes, indicando que a associação entre eles é positiva. Todavia, o coeficiente de correlação de Spearman tem a vantagem de medir também a relação não-linear monotônica entre variáveis. Como esse valor é relativamente alto, pode se dizer que existe essa relação positiva e não-linear entre as variáveis.
+
+
+### b) Especifique um modelo de regressão que poderia ser utilizado para estimar a quantia média devida em taxas dado o valor da propriedade. Ajuste-o, apresentando a reta estimada no diagrama de dispersão.
+
+Neste caso podemos ajustar o seguinte modelo linear aos dados:
+
+$$
+y_{i} = \beta_{0}+\beta_{1}x_{i}+\epsilon
+$$
+Onde $y_i$ é a quantia devida de taxas pelo proprietário e $x_i$ é o valor da propreidade do devedor, e os outros termos são so parâmetros à serem estimados.
+
+Abaixo temos o resultado do modelo ajustado junto com o diagrama de dispersão dos dados.
+
+```{r fig.height=4.5, fig.width=7.5, message=FALSE, warning=FALSE}
+
+equation = function(x) {
+  lm_coef <- list(a = round(coef(x)[1], digits = 2),
+                  b = round(coef(x)[2], digits = 2),
+                  r2 = round(summary(x)$r.squared, digits = 2));
+  lm_eq <- substitute(italic(y) == a + b %.% italic(x),lm_coef)
+  as.character(as.expression(lm_eq));                 
+}
+
+md <- lm(formula = quantia_devida ~ valor_mil_reais, 
+           data = df)
+
+df %>% 
+  ggplot(aes(valor_mil_reais, quantia_devida)) + 
+  geom_point() +
+  geom_smooth(method = 'lm', se = F, color = 'black', size  =0.5) +
+  annotate("text", x=25, y=3500, label = equation(md), parse=T) + 
+  labs(y = 'quantia de taxas devidas',
+       x = 'valor do imóvel (mil R$)',
+       title = 'Modelo ajustado para a relação entre\ntaxas devidas e valor do imóvel'
+       )
+  
+```
+
+
+### c) Use a equação estimada para a prever a taxa média devida de uma propriedade da cidade cujo valor é igual a R$ 42.400,00.
+
+
+```{r}
+estimate <- predict(md, newdata = data.frame('valor_mil_reais' = 42.4))
+```
+É estimado pelo modelo que o proprietário que possua uma propriedade no valor de __R$ 42.400,00__ esteja devendo __2.079__ em taxas.
+
+Essa estimativa é dada pela seguinte equação: $\hat{y_i} = -540.4 + 61.78\cdot{}42.40 = 2078.939$
+
+
+### d) Calcule o coeficiente R2. Comente.
+
+```{r}
+rsq <- summary(md)$r.squared
+```
+
+O R2 do modelo estimado é `r round(rsq,2)`. Interpreta-se essa quantia como sendo 56% das variações da variável dependente, o valor das taxas devidas, são explicadas pela variáve explicativa, o valor da propriedade no caso. O restante das variações deve ser explicado por fatores ausentes no modelo. 
+
