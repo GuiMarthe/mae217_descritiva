@@ -1,0 +1,285 @@
+---
+title: "MAE0217 - Estatística Descritiva - Lista 2"
+author: "Guilherme Marthe - NUSP:8661962"
+date: "April 18, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set( fig.align = 'center',
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+suppressPackageStartupMessages(library(tidyverse))  
+suppressPackageStartupMessages(library(lubridate))
+theme_set(theme_minimal())
+
+```
+
+## Exercício 1
+
+__Os dados apresentados na tabela abaixo referem-se a instantes nos quais o centro de controle operacional de estradas rodoviárias recebeu chamados solicitando algum tipo de auxílio em duas estradas, num determinado dia.__
+
+
+```{r message=FALSE, warning=FALSE}
+df <- read_csv('dados_ex1.csv', col_types = cols(.default = 'c')) %>% rename(estrada = tipo)
+
+horas <- 
+  df %>% select(starts_with('hora'), estrada) %>% 
+  gather(key, value, -estrada) %>% 
+    separate(key, into = c('hora', 'id')) %>%   
+  mutate(id = if_else(is.na(id), '0', id))
+periodos <-  
+  df %>% select(starts_with('periodo'), estrada) %>% 
+  gather(key, value = 'AM_PM', -estrada) %>% 
+    separate(key, into = c('periodo', 'id')) %>%   
+  mutate(id = if_else(is.na(id), '0', id))
+df <- 
+left_join(horas, periodos, cy = c('estrada', 'id')) %>% 
+  select(-periodo, -hora) %>% 
+  mutate(hora_dia = glue::glue('20180418T{value}{am_pm}', value = value, am_pm = AM_PM)) %>% 
+  mutate(hora_dia = ymd_hms(hora_dia)) %>% 
+  select(-value, -AM_PM, -id)
+
+df %>% group_by(estrada) %>% 
+  arrange(hora_dia) %>% 
+  mutate(posto = 1:n()) %>% 
+  ungroup() %>% 
+  mutate(estrada = paste0('Estrada ', estrada)) %>% 
+  spread(estrada, hora_dia) %>% select(-posto)
+
+```
+
+
+#### a) Construa um histograma para a distribuição de frequências de chamados em cada uma das estradas:
+
+```{r fig.height=4, fig.width=7.5, message=FALSE, warning=FALSE}
+df %>% 
+  mutate(estrada = paste0('Estrada ', estrada)) %>% 
+  ggplot(aes(hora_dia)) + 
+  geom_histogram(fill = 'skyblue', color = 'black', bins = 24) +
+  facet_wrap(~estrada, ncol = 1, scales = 'free_x') + 
+  scale_x_datetime(date_breaks = '1 hour', date_labels = '%H:%M' )+ 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  labs(title = 'Distribuição de frequência de chamados', x = 'hora do dia', y = 'contagem') 
+
+```
+
+#### b) Calcule os intervalos de tempo entre as sucessivas chamadas e descreva-os, para cada uma das estradas, utilizando medidas resumo gráficos do tipo boxplot. Existe alguma relação entre o tipo de estrada e o intervalo de tempo entre as chamadas?  
+
+Observando o gráfico a seguir, existem indicativas de que o tempo entre chamadas da estrada 1 é menor que na estrada 2. Isso se dá ao fato de que a mediana do tempo na estrada 1 é menor que na estrada 2.
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+df %>% group_by(estrada) %>% 
+  arrange(hora_dia) %>% 
+  mutate(posto = 1:n()) %>% 
+  mutate(tempo_entre_chamadas = hora_dia - lag(hora_dia)) %>% 
+  mutate(tempo_entre_chamadas = tempo_entre_chamadas/dminutes()) %>% 
+  ungroup() %>% 
+  mutate(estrada = paste0('Estrada ', estrada)) -> tdf
+  
+tdf %>%     
+  ggplot(aes(y = tempo_entre_chamadas, x = estrada, group = estrada)) +
+  geom_boxplot(width = 0.3, fill = 'skyblue3') + 
+  labs(title = 'Comparação da distribuição de tempos entre chamadas', 
+       y = 'tempo entre chaamdas (minutos)',
+       x = NULL)
+```
+
+
+
+#### c) Por intermédio de um gráfico QQ, verifique se a distribuição da variável intervalo de tempo entre as chamadas em cada estrada é compatível com um modelo normal. Faça o mesmo para um modelo exponencial. Compare as distribuições de frequências correspondentes às duas estradas.     
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+tdf %>% 
+  na.omit() %>% 
+  group_by(estrada) %>% 
+  mutate(tempo_entre_chamadas_normalizado = (tempo_entre_chamadas - mean(tempo_entre_chamadas))/sd(tempo_entre_chamadas)) %>% 
+  ggplot(aes(pch = estrada))+
+  geom_abline(slope = 1, intercept = 0,  linetype = 'dashed') + 
+  stat_qq(aes(sample = tempo_entre_chamadas_normalizado), size = 3) + 
+  labs(title = 'Gráfico QQ normal do tempo entre chamadas', 
+       y = 'empírico', 
+       x = 'teórico', 
+       subtitle = 'Tempos entre chamadas da estrada 1 e 2 normalizados.\nLinha pontilhada indica a linha y = x.')
+```
+
+
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+tdf %>% 
+  na.omit() %>% 
+  group_by(estrada) %>% 
+  ggplot(aes(pch = estrada)) +
+  stat_qq(aes(sample = tempo_entre_chamadas), size = 3) + 
+  labs(title = 'Gráfico QQ normal do tempo entre chamadas', 
+       y = 'empírico', 
+       x = 'teórico (ditribuição normal)', 
+       subtitle = 'Tempos entre chamadas da estrada 1 e 2 não normalizados' )
+```
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+
+tdf %>% 
+  na.omit() %>% 
+  group_by(estrada) %>% 
+  ggplot(aes(pch = estrada)) +
+  stat_qq(aes(sample = tempo_entre_chamadas), distribution = stats::qexp, size = 3) + 
+  labs(title = 'Gráfico QQ exponencial do tempo entre chamadas', 
+       y = 'empírico', 
+       x = 'teórico (ditribuição exponencial)', 
+       subtitle = 'Tempos entre chamadas da estrada 1 e 2 não normalizados' )
+```
+
+A análise dos gráficos QQ normal e exponencial nos indicam algumas observações sobre o conjunto de dado:
+
+- analisando o grafico QQ normal com as variáveis normalizadas, podemos ver que ambos os conjuntos de pontos não ficam em linha reta da maneira, indicando que o modelo normal não é mais indicado;
+- analisando o QQ normal com as variáveis originais existe um certo descasamento entre os dados da estrada 1 e da estrada 2, indicando que talvez haja diferença na distribuição delas.
+- analisando o gráfico QQ exponencial, podemos observar que ambos os conjuntos de dados (estrada 1 e 2) ficam em linha reta, indicando a adequação do modelo exponencial. Além disso, a inclinação dessas retas são possivelmente diferentes, indicando distribuições com parâmetros distintos.
+
+\pagebreak
+
+## Exercício 4
+
+Este exercício é inspirado em uma análise estatística realizada no Centro de Estatística Aplicada (CEA) do IME/USP. Para resolvê-lo, você precisa baixar o arquivo MAE217_2018-reacao.xls. O principal objetivo do estudo é avaliar o efeito do treinamento de certo tipo de movimento, a ser realizado pela mão dominante dos participantes (mão direita ou esquerda - ambidestros foram descartados). Os 20 participantes, sem prévio treino com relação ao movimento, foram submetidos a certo estímulo e seu tempo de resposta foi anotado (em ms). A fim de obter valores basais (fase pré- prática), inicialmente cada participante repetiu o procedimento 5 vezes. Após um certo período de tempo pré-fixado, o participante voltou e entrou em fase de prática, quando pode repetir o movimento por 8 vezes. Nessa fase, ele recebia informações luminosas cujo objetivo era melhorar o seu reflexo. Após um novo período
+de tempo pré-fixado, o participante voltou e realizou mais 5 repetições do movimento, sem o auxílio luminoso (fase pós-prática).
+
+Após as transformações necessárias, os dados que foram utilizados ficaram com o seguinte formato:
+
+
+```{r}
+
+df <- readxl::read_excel('MAE217_2018-reacao.xls', skip = 1)
+
+df <- 
+df %>% gather(key = fase, value = tempo_de_reacao, Bloco1:Bloco5__2) %>% 
+  mutate(fase_treinamento = case_when(
+                                fase %in% c('Bloco1','Bloco2','Bloco3','Bloco4','Bloco5') ~ 'pré-prática',
+                                fase %in% c('Bloco1__1','Bloco2__1', 'Bloco3__1', 'Bloco4__1', 'Bloco5__1',
+                                            'Bloco6','Bloco7','Bloco8') ~ 'prática',
+                                fase %in% c('Bloco1__2', 'Bloco2__2','Bloco3__2',
+                                            'Bloco4__2','Bloco5__2') ~ 'pós-prática',
+                                TRUE ~ 'WTF'
+                                  )
+         ) %>% ungroup
+
+df
+
+```
+
+#### a) construa gráficos do tipo box-plot (um ao lado do outro) para cada uma das 3 fases. O que pode ser dito?
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+df %>% 
+  mutate(fase_treinamento = factor(fase_treinamento, levels = c('pré-prática', 'prática', 'pós-prática'))) %>% 
+  ggplot(aes(y = tempo_de_reacao, x = fase_treinamento)) + 
+  geom_boxplot(width = 0.3, fill = 'dodgerblue1') + 
+  labs(title = 'Distribuição de tempos de reação nas diferentes fases de prática', 
+       y = 'tempo de reaçao (ms)',
+       x = NULL)
+```
+
+
+
+Como evidenciado pela inspeção do boxplot do tempo de reação nas fases de prática, parece haver um ganho considerável no tempo de reação da pré-prática para a prática. Essa diminuição parece não ser tão evidente na comparação do tempo de reação da prática para pós-prática.
+
+
+#### b) Repita o item anterior para cada sexo. Existem diferenças nos padrões observados, para cada sexo?
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+
+df %>% 
+  ggplot(aes(y = tempo_de_reacao, x = Sexo)) + 
+  geom_boxplot(width = 0.3, fill = 'dodgerblue1') + 
+  labs(title = 'Distribuição de tempos de reação entre homens e mulheres', 
+       y = 'tempo de reaçao (ms)',
+       x = NULL)
+```
+
+Durante a inspeção do boxplot anterior, podemos observar que o tempo de reação entre pessoas do sexo feminino apresentam uma maior variabilidade, evidenciado pela amplitude do intervalo interquartil maior. Alêm disso, pessoas do gênero masculino parecem ter um tempo de reação menor, uma ver a mediana desse grupo é menor que a das pessoas do grupo feminino. 
+
+#### c) Repita o item anterior para cada mão dominante. O que pode ser dito? 
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+
+df %>% 
+  mutate(dom = if_else(Dom. == 'E', 'canhotos', 'destros')) %>% 
+  ggplot(aes(y = tempo_de_reacao, x = dom)) + 
+  geom_boxplot(width = 0.3, fill = 'dodgerblue1') + 
+  labs(title = 'Distribuição de tempos de reação entre\npessoas de diferentes mãos dominantes', 
+       y = 'tempo de reaçao (ms)',
+       x = NULL)
+```
+
+A inspeção do boxplot anterior indica que pessoas destras tem um tempo de reação ligeiramente menor (evidenciado mais uma vez pela menor mediana), e talvez um pouco menos variáveis que o tempo de reação de pessoas canhotas.
+
+
+#### d)  Utilizando os coeficientes de assimetria (Bowley e amostral) e curtose, verifique como se comportam as medidas feitas no Bloco 5 da fase pós-prática. Você consideraria o modelo Normal adequado para esses dados? 
+
+
+Conforme podemos ver na tabela abaixo, os valores de estatísticas de assimetria e cortuse indicam que os dados:
+
+- tem uma assimetria positiva
+- possui um achatamento menor que o esperado para uma normal padrão
+
+```{r}
+
+bowley_skewness <- function(col) {
+  quartile <- quantile(col, probs = c(0.25, 0.75))
+  (quartile[[2]] - median(col) - (median(col) - quartile[[1]]))/IQR(col)
+}
+
+sample_moments_skewness <- function(col) {
+  m = mean(col)
+  n = length(col)
+  moment3 = sum((col - m)^3)/n
+  moment2 = sum((col - m)^2)/n
+  ((moment3)^2)/((moment2)^3)
+}
+
+flattening_coeficient <- function(col) {
+  n = length(col)
+  col = (col - mean(col))/sd(col)
+  mean(col^4) - 3
+}
+
+
+df %>% 
+  filter(fase_treinamento == 'pós-prática') %>% 
+  filter(fase == 'Bloco5__2') %>% 
+  summarise(bowey = bowley_skewness(tempo_de_reacao), 
+            amostral_b = sample_moments_skewness(tempo_de_reacao), 
+            amostral_g = sqrt(amostral_b), 
+            coef_achatamento = flattening_coeficient(tempo_de_reacao)) %>% 
+  gather(key = estatística, `tempo de reação do bloco 5 do pós-prática`)
+
+
+```
+
+#### e) Responda à pergunta do item anterior analisando agora um gráfico QQ para o modelo Normal.
+
+
+```{r fig.height=3, fig.width=6, message=FALSE, warning=FALSE}
+df %>% 
+  filter(fase_treinamento == 'pós-prática') %>% 
+  filter(fase == 'Bloco5__2') %>%
+  mutate(trn = (tempo_de_reacao - mean(tempo_de_reacao))/sd(tempo_de_reacao)) %>% 
+  ggplot() + 
+  stat_qq(aes(sample = trn)) + 
+  geom_abline(slope = 1, intercept = 0, linetype = 'dashed') + 
+  labs(title = 'QQ normal para o tempo de reação do bloco 5\nda fase pós-prática',
+       y = 'empírico', x = 'teórico (normal)')
+```
+
+
+Observando o gráfico QQ normal, podemos ver que os pontos não se alinham, indicando que o modelo normal não é o mais indicado para o conjunto de dados de tempos de reação no bloco 5 da fase pós-prática.
+
+
+
