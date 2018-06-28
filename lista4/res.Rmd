@@ -1,0 +1,115 @@
+---
+title: "List 4 - Estatística Descritiva"
+author: "Guilherme Marthe"
+date: "May 27, 2018"
+output: pdf_document
+---
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.align = 'center',
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+suppressPackageStartupMessages(library(tidyverse))  
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(janitor))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(kableExtra))
+suppressPackageStartupMessages(library(stargazer))
+theme_set(theme_minimal())
+```
+
+
+
+## 1. Considere o modelo
+$$ y_i= \beta x_i+ e_i, \quad i = 1,...,n $$ 
+
+Em que $E(e_i) = 0$ e $Var(e_i) = \sigma ^2$, erros aleatórios e não correlacionados.
+
+__a) Obtenha o estimador de mínimos quadrados de $\beta$ e proponha um estimador não viciado para $\sigma ^2$.__
+
+__(b) Que distribuição (aproximada) você proporia para o estimador de $\beta$ obtido em (a)? Justifique sua resposta.__
+
+___(c) Com base nos itens anteriore, especifique um intervalo de confiança aproximado para $\beta$, com coeficiente de confiança $\gamma \in (0,1)$.__
+
+
+
+## 2. Num estudo realizado na Faculdade de Medicina da Universidade de São Paulo foram colhidos dados de 16 pacientes submetidos a transplante intervivos e, em cada um deles, obtiveram-se medidas tanto do peso (g) real do lobo direito do fígado quanto de seu volume (em cm3) previsto pré-operatoriamente por métodos ultrassonográficos. O objetivo é estimar o peso real por meio do volume previsto. Os dados estão dispostos na tabela a seguir.
+
+
+```{r}
+df <- read_csv('data/ex2.csv', col_types = cols(
+  volume = col_integer(),
+  peso = col_integer()
+))
+df %>% kable(format = 'latex', booktabs = T) %>%  
+  kable_styling(position = "center")
+```
+
+__(a) Proponha um modelo de regressão linear simples com intercepto para analisar os dados e interprete seus parâmetros.__
+
+
+Proponho o seguinte modelo de regressão linear simples:
+
+$$
+y_i= \beta_0 + \beta_1x_i+ e_i, \quad i = 1,...,n 
+$$
+Onde $y_i$ representa peso real do lobo direito do fígado, $x_i$ representa o volume previsto. Neste modelo, $\beta_1$ representa a mudança esperada do peso real($y_i$) 
+para a mudança em uma unidade de volume previsto ($x_i$). Além disso, da maneira que está construido o modelo, $\beta_0$ fica sem uma interpretação direta, pois um volume previsto de 0 não faz sentido.
+
+
+__(b) Construa um gráfico de dispersão apropriado. Interprete.__
+
+
+```{r dispercao_ex2}
+df %>% 
+  ggplot(aes(x = volume, y = peso)) + 
+  geom_point() + 
+  labs(title = 'Relação entre volume previsto e peso real\ndo lobo direito do figado', 
+       x = 'volume previsto', 
+       y = 'peso real')
+```
+
+
+O gráfico de dispersão anterior indica alguns pontos:
+
+- o modelo linear pode ser o mais indicado para esse conjunto de dados;
+- porém, pode-se haver uma tendência logarítimica ao se checar uma dispersão menor o redor dos pontos no canto superior direito;
+- o ponto no canto inferior direito pode se mostrar discrepante com relação aos outros.
+
+__(c) Ajuste o modelo e interprete os valores obtidos para os parâmetros__
+
+```{r stargazerrrr, results='asis'}
+df %>% 
+  lm(peso ~ volume, data = .) -> md
+
+stargazer(md, align=TRUE,  single.row=TRUE)
+
+```
+
+
+__(d) Avalie o ajuste do modelo por meio de medidas descritivas e resíduos.__
+
+__(e) Repita os itens anteriores considerando um modelo linear simples sem intercepto.__
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,450 @@
+---
+title: "Lista 4 - Estatística descritiva"
+author: 'Guilherme Marthe, nusp: 8661992'
+header-includes:
+   - \usepackage{dcolumn}
+output:
+  pdf_document: default
+  html_notebook: default
+geometry: margin=2cm
+---
+```{r include=FALSE}
+knitr::opts_chunk$set(fig.align = 'center',
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+suppressPackageStartupMessages(library(tidyverse))  
+suppressPackageStartupMessages(library(lubridate))
+suppressPackageStartupMessages(library(janitor))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(kableExtra))
+suppressPackageStartupMessages(library(texreg))
+suppressPackageStartupMessages(library(gridExtra))
+theme_set(theme_minimal())
+```
+
+
+
+## 1. Considere o modelo
+$$ y_i= \beta x_i+ e_i, \quad i = 1,...,n $$ 
+
+Em que $E(e_i) = 0$ e $Var(e_i) = \sigma ^2$, erros aleatórios e não correlacionados.
+
+__a) Obtenha o estimador de mínimos quadrados de $\beta$ e proponha um estimador não viciado para $\sigma^2$.__
+
+Para chegar no estimador de mínimos quadrados, basta rearranjar os termos da equação acima da seguinte forma:
+
+$$
+Q(\beta) = \sum_{i=1}^ne_i^2 = \sum_{i=1}^n(y_i - \beta\cdot x_i)^2 
+$$
+Então, através da condição de primeira ordem para otimizar $Q(\beta)$ temos:
+
+$$
+\frac{dQ}{d\beta} = 0
+$$
+E derivando $Q(\beta)$ temos:
+
+$$
+\frac{dQ}{d\beta} = \sum_{i=1}^n2\cdot(y_i - \beta\cdot x_i)\cdot(-x_i) = 0 \implies \hat{\beta} = 
+\frac{\sum_{i=1}^nx_iy_i}{\sum_{i=1}^nx_i^2}
+$$
+
+Para estimarmos $\sigma^2$ podemos partir do pressuposto que quando o calculamos em uma regressão com intercpeto, a correção para acabar com o viés leva em conta a soma dos quadrados dos resíduos e o número de parâmetros estimados. Como aqui no caso da regressão simples sem intercepto estimamos apenas uma parâmetro, propomos o seguinte estimador:
+
+$$
+\widehat{Var(e_i)} = \widehat{\sigma}^2=\frac{1}{n-1}\cdot\sum_{i=1}^n(y_i - \hat{y_i})^2 = \frac{\bf{SQR}}{n-1}
+$$
+
+
+__(b) Que distribuição (aproximada) você proporia para o estimador de $\beta$ obtido em (a)? Justifique sua resposta.__
+
+
+Sob a hipótese de n grande o suficiente, podemos depender do teorema do limite central para propor uma distribuição para $\hat{\beta}$. Uma vez que $E(\hat{\beta})=\beta$ e $Var(\hat\beta) = \frac{\sigma^2}{\sum_{i=1}^nx_i^2}$ podemos propor que:
+
+$$
+\hat\beta\sim N(\beta,\frac{\sigma^2}{Var(x_i)})
+$$
+
+
+__(c) Com base nos itens anteriore, especifique um intervalo de confiança aproximado para $\beta$, com coeficiente de confiança $\gamma \in (0,1)$.__
+
+Assim, podemos propor o seguinte intervalo de confiânça para $\hat\beta$:
+
+$$
+\beta \in [\hat\beta \pm \widehat{ep(\hat\beta)}\cdot z_{\gamma}]
+$$
+
+Onde $z_{\gamma}$ o quantil da normal padrão sob $\gamma\%$ de confiança.
+
+
+
+
+## 2. Num estudo realizado na Faculdade de Medicina da Universidade de São Paulo foram colhidos dados de 16 pacientes submetidos a transplante intervivos e, em cada um deles, obtiveram-se medidas tanto do peso (g) real do lobo direito do fígado quanto de seu volume (em cm3) previsto pré-operatoriamente por métodos ultrassonográficos. O objetivo é estimar o peso real por meio do volume previsto. Os dados estão dispostos na tabela a seguir.
+
+
+```{r}
+df <- read_csv('data/ex2.csv', col_types = cols(
+  volume = col_integer(),
+  peso = col_integer()
+))
+df %>% kable(format = 'latex', booktabs = T) %>%  
+  kable_styling(position = "center")
+```
+
+__(a) Proponha um modelo de regressão linear simples com intercepto para analisar os dados e interprete seus parâmetros.__
+
+
+Proponho o seguinte modelo de regressão linear simples:
+
+$$
+y_i= \beta_0 + \beta_1x_i+ e_i, \quad i = 1,...,n 
+$$
+Onde $y_i$ representa peso real do lobo direito do fígado, $x_i$ representa o volume previsto. Neste modelo, $\beta_1$ representa a mudança esperada do peso real($y_i$) 
+para a mudança em uma unidade de volume previsto ($x_i$). Além disso, da maneira que está construido o modelo, $\beta_0$ fica sem uma interpretação direta, pois um volume previsto de 0 não faz sentido.
+
+
+__(b) Construa um gráfico de dispersão apropriado. Interprete.__
+
+
+```{r dispercao_ex2, fig.height=3.2, fig.width=6}
+df %>% 
+  ggplot(aes(x = volume, y = peso)) + 
+  geom_point() + 
+  labs(title = 'Relação entre volume previsto e peso real\ndo lobo direito do figado', 
+       x = 'volume previsto', 
+       y = 'peso real')
+```
+
+
+O gráfico de dispersão anterior indica alguns pontos:
+
+- o modelo linear pode ser o mais indicado para esse conjunto de dados;
+- porém, pode-se haver uma tendência logarítimica ao se checar uma dispersão menor o redor dos pontos no canto superior direito;
+- o ponto no canto inferior direito pode se mostrar discrepante com relação aos outros.
+
+__(c) Ajuste o modelo e interprete os valores obtidos para os parâmetros__
+
+```{r reg , results='asis'}
+df %>% 
+  lm(peso ~ volume, data = .) -> md
+
+texreg(list(md), dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE, label = "tab:1", float.pos = "hb!")
+```
+
+O modelo ajustado acima tem a seguinte interpretação:
+
+- a cada mudança de uma unidade (cm3) de volume previsto é esperado um aumento de 0.7642 gramas do peso real do lobo direito do fígado. 
+- é possível notar que devido ao alto erro padrão da estimativa do intercepto, talvez não faça sentido mantê-lo na forma funcional do modelo.
+
+
+__(d) Avalie o ajuste do modelo por meio de medidas descritivas e resíduos.__
+
+
+De acordo com a tabela do item anterior, as medidas de R2 e R2 ajustado indicam um que a variável volume estimado representam 58% das variações do peso do rim. 
+
+
+```{r fig.height=3.2, fig.width=6}
+
+df %>% 
+  modelr::add_predictions(md) %>% 
+  ggplot(aes(peso, pred)) + 
+  geom_point() + 
+  geom_abline(aes(intercept = 0, slope = 1)) + 
+  labs(title = 'Previsto X realizado',
+       subtitle = 'Reta sólida representa a bissetriz (y = x)',
+       y = 'previsto (g)',
+       x = 'realizado (g)'
+       )
+
+```
+
+A dispersão dos pontos previstos pela regressão e realizados (acima) uma dispersão possívelmente aleatória o suficiente ao longo da reta para indicar um bom ajuste. 
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md) %>% 
+  select(volume, resíduos = .resid, `resíduos padronizados` = .std.resid) %>% 
+  gather(type, value, -volume) %>% 
+  ggplot(aes(x = volume, y = value)) + 
+  geom_point() +
+  geom_hline(yintercept = 0,  linetype = 'dashed') + 
+  facet_wrap(~type, nrow = 1, scales = 'free_y') +
+  theme_light() +
+  labs(title = 'Resíduos X variável explicativa',
+       x = 'volume (cm3)', 
+       y = NULL
+       )
+
+```
+Ao analizar gráfico de resíduos e gráfico de resíduos padronizados ao longo da variável explicativa volume previsto, podemos ressaltar alguns pontos:
+
+- existe um padrão relativamente ascendente (pelo menos não aleatório) dos resíduos ao longo das faixas de 600g e 800g do volume previsto;
+
+- a medida encontrada no canto inferior esquerdo de ambos os gráficos pode ser considerada um ponto anormal em termos do resíduo resultante do modelo escolhido;
+
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md)  %>% 
+  rowid_to_column('indice') %>%
+  mutate(indice = as.factor(indice)) %>% 
+  ggplot(aes(x = indice, y = .cooksd)) + 
+  geom_point() +
+  geom_text(aes(label = volume), nudge_y = 0.05, size = 3) + 
+  labs(title = 'Distância de Cook para cada observação',
+       x = 'indice da observação', 
+       y = 'distância', 
+       subtitle = 'Acima de cada ponto está o valor do volume (variável independente) da observação'
+       )
+```
+Analisando o gráfico da distância de cook para cada observação, podemos ver que a observação 12 (com um valor de volume previsto igual a 945) possui uma distância de Cook maior que todas as outras observções, indicando um possível outlier. 
+
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md) %>% 
+ ggplot(aes(sample = .std.resid)) + 
+  geom_abline(intercept = 0, slope = 1) + 
+  stat_qq(distribution = qt, dparams = list(df = 14)) + 
+  labs(title = 'Gráfico QQ dos reśiduos padronizados', 
+       y = 'resíduos padronizados', 
+       x = 'quantis teóricos da t de studant com 14 g.l.', 
+       subtitle = 'Reta sólida representa a bissetriz (y = x)'
+       )
+  
+```
+
+Por fim, um gráfico QQ dos reśiduos padronizados com relação a distribuição t de student com 14 graus de liberdade indica que talvez o ajuste do modelo seja adquado uma vez que a distribuição estão relativamente dispersa ao longo da bissetriz.  
+
+
+__(e) Repita os itens anteriores considerando um modelo linear simples sem intercepto.__
+
+Primeiro reproduziremos os gráficos e tebelas do item anterior, e em seguida analisaremos brevemente as diferenças.
+
+
+```{r reg2, results='asis'}
+df %>% 
+  lm(peso ~ volume - 1, data = .) -> md
+texreg(list(md), dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE, label = "tab:1",
+ float.pos = "hb!")
+```
+
+
+
+```{r fig.height=3.2, fig.width=6}
+
+df %>% 
+  broom::augment_columns(data = ., x =md) %>% 
+  ggplot(aes(peso, .fitted)) + 
+  geom_point() + 
+  geom_abline(aes(intercept = 0, slope = 1)) + 
+  labs(title = 'Previsto X realizado',
+       subtitle = 'Reta sólida representa a bissetriz (y = x)',
+       y = 'previsto (g)',
+       x = 'realizado (g)'
+       )
+
+```
+
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md) %>% 
+  select(volume, resíduos = .resid, `resíduos padronizados` = .std.resid) %>% 
+  gather(type, value, -volume) %>% 
+  ggplot(aes(x = volume, y = value)) + 
+  geom_point() +
+  geom_hline(yintercept = 0,  linetype = 'dashed') + 
+  facet_wrap(~type, nrow = 1, scales = 'free_y') +
+  theme_light() +
+  labs(title = 'Resíduos X variável explicativa',
+       x = 'volume (cm3)', 
+       y = NULL
+       )
+
+```
+
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md)  %>% 
+  rowid_to_column('indice') %>%
+  mutate(indice = as.factor(indice)) %>% 
+  ggplot(aes(x = indice, y = .cooksd)) + 
+  geom_point() +
+  geom_text(aes(label = volume), nudge_y = 0.05, size = 3) + 
+  labs(title = 'Distância de Cook para cada observação',
+       x = 'indice da observação', 
+       y = 'distância', 
+       subtitle = 'Acima de cada ponto está o valor do volume (variável independente) da observação'
+       )
+```
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md) %>% 
+ ggplot(aes(sample = .std.resid)) + 
+  geom_abline(intercept = 0, slope = 1) + 
+  stat_qq(distribution = qt, dparams = list(df = 15)) + 
+  labs(title = 'Gráfico QQ dos reśiduos padronizados', 
+       y = 'resíduos padronizados', 
+       x = 'quantis teóricos da t de studant com 15 g.l.', 
+       subtitle = 'Reta sólida representa a bissetriz (y = x)'
+       )
+  
+```
+
+As diferenças mais relevantes entre os ajustes de cada modelo são:
+
+- o aumento expressivo dos coeficientes de determinação R2 e R2 ajustado indicam que 98% das variações do peso são explicadas pelo volume previsto do rim;
+
+- um maior indicativo de que a observação 12 é de fato incomum para os dados, como evidênciado pelo aumento do resíduo padronizado delas (~3);
+
+- o impacto na análise da distribuição do resíduos padronizados indicando ainda mais que algun pontos impedem a boa aderência dos resíduos com o modelo teórico adequado. 
+
+\newpage
+
+## 3. Os dados abaixo são provenientes de uma pesquisa para cujo objetivo é propor um modelo para a relação entre a área construída de um determinado tipo de imóvel e o seu valor de mercado. 
+
+```{r}
+ct = cols(
+  imovel = col_integer(),
+  area = col_integer(),
+  valor = col_integer()
+)
+df <- read_csv('data/ex3.csv', col_types = ct)
+
+df %>% kable(format = 'latex', booktabs = T) %>%  
+  kable_styling(position = "center")
+```
+
+
+__(a) Construa um gráfico de dispersão apropriado para esses dados.__
+
+```{r fig.height=3, fig.width=8}
+options(scipen = 0)
+df %>% 
+  ggplot(aes(area, valor)) + 
+  geom_point() +
+  labs(title = 'Valor X área de 14 imóveis',
+       x = 'área (m2)', 
+       y = 'valor (R$)'
+       ) -> p1
+
+p1 + 
+  scale_x_log10() + 
+  scale_y_log10() + 
+  labs(title = 'Valor X área de 14 imóveis',
+       x = 'log área (m2)',
+       y = 'log valor (R$)'
+       )  + 
+  annotation_logticks() -> p2
+
+
+gridExtra::grid.arrange(p1, p2, nrow = 1)
+
+```
+
+
+
+__(b) Ajuste um modelo de regressão linear simples e avalie a qualidade do ajuste (obtenha estimativas dos parâmetros e de seus erros padrões, calcule o coeficiente de determinação e construa gráficos de resíduos e um gráfico tipo QQ.__
+
+```{r results='asis'}
+df %>% 
+  lm(valor ~ area, data = .) -> md
+
+texreg(list(md), dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE, label = "tab:1", float.pos = "hb!")
+```
+
+Sobre o ajuste do modelo, podemos dizer que o erro padrão do intercepto é alto, indicando que talvez não precise estar no modelo. Além disso, podemos ver pelo R2 e R2 ajustado que 48% das variações do valor de um imóvel é explicada pela sua área. É esperado que para cara metro qudrado a mais, o aumento em seu valor seja em 30 reais (aproximadamente).
+
+
+```{r fig.height=3.2, fig.width=6}
+df %>% 
+  broom::augment_columns(data = ., x =md) %>% 
+  ggplot(aes(valor, .fitted)) + 
+  geom_point() + 
+  geom_abline(aes(intercept = 0, slope = 1)) + 
+  labs(title = 'Previsto X realizado',
+       subtitle = 'Reta sólida representa a bissetriz (y = x)',
+       y = 'previsto (g)',
+       x = 'realizado (g)'
+       )
+```
+
+O gráfico previsto X realizado indica um boa ajuste para valores realizados baixos, porém para valores altos o erro é grande.
+
+```{r fig.height=3.2, fig.width=6}
+broom::augment_columns(data = df,x =  md) %>% 
+  select(area, resíduos = .resid, `resíduos padronizados` = .std.resid) %>% 
+  gather(type, value, -area) %>% 
+  ggplot(aes(x = area, y = value)) + 
+  geom_point() +
+  geom_hline(yintercept = 0,  linetype = 'dashed') + 
+  facet_wrap(~type, nrow = 1, scales = 'free_y') +
+  theme_light() +
+  labs(title = 'Resíduos X variável explicativa',
+       x = 'área (m2)', 
+       y = NULL
+       )
+
+```
+
+Ao analisar os resíduos e resíduos padronizados podemos ver que o mesmo padrão ocorre. Os resíduos discrepantes ocorrem para valores altos de área, aqueles geralmente associados à valores de imóveis altos em que o modelo atual "erra" bastante.
+
+```{r fig.height=3.2, fig.width=6}
+
+broom::augment_columns(data = df,x =  md) %>% 
+ ggplot(aes(sample = .std.resid)) + 
+  geom_abline(intercept = 0, slope = 1) + 
+  stat_qq(distribution = qt, dparams = list(df = 12)) + 
+  labs(title = 'Gráfico QQ dos reśiduos padronizados', 
+       y = 'resíduos padronizados', 
+       x = 'quantis teóricos da t de studant com 12 g.l.', 
+       subtitle = 'Reta sólida representa a bissetriz (y = x)'
+       )
+```
+
+O gráfico QQ para os resíduos padronizados indicam que o modelo proposto é inadequado, uma vez que os ponto sem dúvidas não ficam sobre a bissetriz. 
+
+__(c) Ajuste agora um modelo linearizável__
+
+$$
+y = \beta x^{\gamma}e
+$$
+
+__em que y representa o preço e x representa a área.Avalie a qualidade do ajuste comparativamente ao modelo linear ajustado no item anterior; construa um gráfico de dispersão com os dados transformados.__
+ 
+Com o modelo proposto no enunciado podemos ter a seguinte versão linear dele:
+
+$$
+log(y) = log(\beta) + \gamma \cdot log(x) + log(e)
+$$
+
+Que é estimável usualmente por mínimos quadrados oridnários após transformar as variáveis.
+
+```{r results='asis'}
+
+df %>% 
+  lm(log(valor) ~ log(area), data = .) -> md
+
+
+texreg(list(md), dcolumn = TRUE, booktabs = TRUE, use.packages = FALSE, label = "tab:1", float.pos = "hb!")
+```
+
+Claramente o ajuste é melhor, uma vez que ouve um salto grande no coeficiente de determinação e todos os parâmetros estimados têm um erro padrão baixo. 
+
+
+__(d) Discuta as vantagens e desvantagens de uso de cada um dos modelos.__
+
+O primeiro modelo tem a vantagem de ter um parâmetro associado à variável independente facilmente interpretável. Além disso, com pequenos ajustes, o modelo também pode ter um intercepto interpretável. 
+Todavia o segundo modelo ajuda a explicar as variações da variável resposta (valor do imóvel) melhor, ás custas de uma interpretação mais complexa do modelo.
+
+
+
+
+
+
+
+
